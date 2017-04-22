@@ -1,4 +1,3 @@
-
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -8,12 +7,13 @@
 #include "ukf.h"
 #include "ground_truth_package.h"
 #include "measurement_package.h"
+#include "system_configuration.h"
 
 using namespace std;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using std::vector;
-
+/*
 void check_arguments(int argc, char* argv[]) {
   string usage_instructions = "Usage instructions: ";
   usage_instructions += argv[0];
@@ -36,6 +36,68 @@ void check_arguments(int argc, char* argv[]) {
     exit(EXIT_FAILURE);
   }
 }
+*/
+
+SystemConfiguration ParseCMDLine(int argc, char *argv[]) {
+
+	SystemConfiguration conf;
+
+	string usage_instructions = "Usage instructions: \n";
+	usage_instructions += argv[0];
+	usage_instructions += "\n";
+	usage_instructions += "path/to/input.txt\n";
+	usage_instructions += "path/to/output.txt\n";
+	usage_instructions += "[r|l|b] for [radar only|laser only|both] \n";
+
+	bool has_valid_args = false;
+
+	// make sure the user has provided input and output files
+	if (argc == 1) {
+	cerr << usage_instructions << endl;
+	} else if (argc == 2 || argc == 3) {
+	cerr << "Please include an output file and the measurements you want to use.\n" << usage_instructions << endl;
+	} else if (argc == 4) {
+	has_valid_args = true;
+	} else if (argc > 4) {
+	cerr << "Too many arguments.\n" << usage_instructions << endl;
+	}
+
+	if (!has_valid_args) {
+	exit(EXIT_FAILURE);
+	}
+
+	try{
+		conf.inputFile= argv[1];
+		conf.outputFile = argv[2];
+		string sensorData = argv[3];
+
+		if(sensorData.compare("r") == 0 || sensorData.compare("R") == 0 || sensorData.compare("radar") == 0){
+			conf.radar = true;
+			conf.laser = false;
+
+		}
+		else if(sensorData.compare("l") == 0 || sensorData.compare("L") == 0 || sensorData.compare("laser") == 0){
+			conf.laser = true;
+			conf.radar = false;
+		}
+		else if(sensorData.compare("b") == 0 || sensorData.compare("B") == 0 || sensorData.compare("both") == 0){
+			conf.radar = true;
+			conf.laser = true;
+		}
+		else
+			throw "Not valid arg";
+		cout << sensorData << conf.radar << conf.laser;
+			
+	}
+	catch(exception &e)
+	{
+		cerr << "Please use a layout like the one described in the usage" << usage_instructions << endl;
+		exit(EXIT_FAILURE);
+
+	}
+
+	return conf;
+}
 
 void check_files(ifstream& in_file, string& in_name,
                  ofstream& out_file, string& out_name) {
@@ -52,16 +114,28 @@ void check_files(ifstream& in_file, string& in_name,
 
 int main(int argc, char* argv[]) {
 
-  check_arguments(argc, argv);
+	SystemConfiguration conf;
+	#ifndef DEBUG
+	conf = ParseCMDLine(argc, argv);
+	/*check_arguments(argc, argv);
+	in_file_name_ = argv[1];
+	out_file_name_ = argv[2];*/
 
-  string in_file_name_ = argv[1];
-  ifstream in_file_(in_file_name_.c_str(), ifstream::in);
+	#endif
 
-  string out_file_name_ = argv[2];
-  ofstream out_file_(out_file_name_.c_str(), ofstream::out);
+	#ifdef DEBUG
+	
+	conf.inputFile = "E:/Self Driving Car Nanodegree/Term 2/KFDevelopment/CarND-Extended-Kalman-Filter-Project-GITHUBDirectory/data/sample-laser-radar-measurement-data-2.txt";
+	conf.outputFile = "E:/Self Driving Car Nanodegree/Term 2/KFDevelopment/CarND-Extended-Kalman-Filter-Project-GITHUBDirectory/data/sample-laser-radar-measurement-data-2-output.txt";
+	conf.radar = true;
+	conf.laser = true;
+										
+	#endif
+	ifstream in_file_(conf.inputFile.c_str(), ifstream::in);
 
-  check_files(in_file_, in_file_name_, out_file_, out_file_name_);
+	ofstream out_file_(conf.outputFile.c_str(), ofstream::out);
 
+	check_files(in_file_, conf.inputFile, out_file_, conf.outputFile);
   /**********************************************
    *  Set Measurements                          *
    **********************************************/
@@ -73,61 +147,64 @@ int main(int argc, char* argv[]) {
 
   // prep the measurement packages (each line represents a measurement at a
   // timestamp)
-  while (getline(in_file_, line)) {
-    string sensor_type;
-    MeasurementPackage meas_package;
-    GroundTruthPackage gt_package;
-    istringstream iss(line);
-    long long timestamp;
+	while (getline(in_file_, line)) {
+		string sensor_type;
+		MeasurementPackage meas_package;
+		GroundTruthPackage gt_package;
+		istringstream iss(line);
+		long long timestamp;
 
-    // reads first element from the current line
-    iss >> sensor_type;
+		// reads first element from the current line
+		iss >> sensor_type;
 
-    if (sensor_type.compare("L") == 0) {
-      // laser measurement
+		if (sensor_type.compare("L") == 0) {
+			// laser measurement
 
-      // read measurements at this timestamp
-      meas_package.sensor_type_ = MeasurementPackage::LASER;
-      meas_package.raw_measurements_ = VectorXd(2);
-      float px;
-      float py;
-      iss >> px;
-      iss >> py;
-      meas_package.raw_measurements_ << px, py;
-      iss >> timestamp;
-      meas_package.timestamp_ = timestamp;
-      measurement_pack_list.push_back(meas_package);
-    } else if (sensor_type.compare("R") == 0) {
-      // radar measurement
+			// read measurements at this timestamp
+			meas_package.sensor_type_ = MeasurementPackage::LASER;
+			meas_package.raw_measurements_ = VectorXd(2);
+			float px;
+			float py;
+			iss >> px;
+			iss >> py;
+			meas_package.raw_measurements_ << px, py;
+			iss >> timestamp;
+			meas_package.timestamp_ = timestamp;
+			if(conf.laser)
+				measurement_pack_list.push_back(meas_package);
+		} else if (sensor_type.compare("R") == 0) {
+			// radar measurement
 
-      // read measurements at this timestamp
-      meas_package.sensor_type_ = MeasurementPackage::RADAR;
-      meas_package.raw_measurements_ = VectorXd(3);
-      float ro;
-      float phi;
-      float ro_dot;
-      iss >> ro;
-      iss >> phi;
-      iss >> ro_dot;
-      meas_package.raw_measurements_ << ro, phi, ro_dot;
-      iss >> timestamp;
-      meas_package.timestamp_ = timestamp;
-      measurement_pack_list.push_back(meas_package);
-    }
+			// read measurements at this timestamp
+			meas_package.sensor_type_ = MeasurementPackage::RADAR;
+			meas_package.raw_measurements_ = VectorXd(3);
+			float ro;
+			float phi;
+			float ro_dot;
+			iss >> ro;
+			iss >> phi;
+			iss >> ro_dot;
+			meas_package.raw_measurements_ << ro, phi, ro_dot;
+			iss >> timestamp;
+			meas_package.timestamp_ = timestamp;
+			if(conf.laser)
+				measurement_pack_list.push_back(meas_package);
+		}
 
-      // read ground truth data to compare later
-      float x_gt;
-      float y_gt;
-      float vx_gt;
-      float vy_gt;
-      iss >> x_gt;
-      iss >> y_gt;
-      iss >> vx_gt;
-      iss >> vy_gt;
-      gt_package.gt_values_ = VectorXd(4);
-      gt_package.gt_values_ << x_gt, y_gt, vx_gt, vy_gt;
-      gt_pack_list.push_back(gt_package);
-  }
+		// read ground truth data to compare later
+		float x_gt;
+		float y_gt;
+		float vx_gt;
+		float vy_gt;
+		iss >> x_gt;
+		iss >> y_gt;
+		iss >> vx_gt;
+		iss >> vy_gt;
+		gt_package.gt_values_ = VectorXd(4);
+		gt_package.gt_values_ << x_gt, y_gt, vx_gt, vy_gt;
+		if((sensor_type.compare("R") && conf.radar) || (sensor_type.compare("L") && conf.laser))
+			gt_pack_list.push_back(gt_package);
+	}
 
   // Create a UKF instance
   UKF ukf;
