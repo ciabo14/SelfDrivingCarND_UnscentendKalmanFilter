@@ -1,4 +1,5 @@
 #include <fstream>
+#include <array>
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -15,31 +16,6 @@ using Eigen::VectorXd;
 using std::vector;
 
 #define DEBUG true;
-/*
-void check_arguments(int argc, char* argv[]) {
-  string usage_instructions = "Usage instructions: ";
-  usage_instructions += argv[0];
-  usage_instructions += " path/to/input.txt output.txt";
-
-  bool has_valid_args = false;
-
-  // make sure the user has provided input and output files
-  if (argc == 1) {
-    cerr << usage_instructions << endl;
-  } else if (argc == 2) {
-    cerr << "Please include an output file.\n" << usage_instructions << endl;
-  } else if (argc == 3) {
-    has_valid_args = true;
-  } else if (argc > 3) {
-    cerr << "Too many arguments.\n" << usage_instructions << endl;
-  }
-
-  if (!has_valid_args) {
-    exit(EXIT_FAILURE);
-  }
-}
-*/
-
 
 void readInputFile(ifstream &in_file_, vector<MeasurementPackage> *meas_pack_list_out, vector<GroundTruthPackage> *gt_pack_list_out, SystemConfiguration conf){
 	
@@ -47,8 +23,7 @@ void readInputFile(ifstream &in_file_, vector<MeasurementPackage> *meas_pack_lis
 	vector<GroundTruthPackage> gt_pack_list;
 	string line;
 
-  // prep the measurement packages (each line represents a measurement at a
-  // timestamp)
+	// prep the measurement packages (each line represents a measurement at a timestamp)
 	while (getline(in_file_, line)) {
 		string sensor_type;
 		MeasurementPackage meas_package;
@@ -164,34 +139,32 @@ SystemConfiguration ParseCMDLine(int argc, char *argv[]) {
 	usage_instructions += "\n";
 	usage_instructions += "path/to/input.txt\n";
 	usage_instructions += "path/to/output.txt\n";
+	usage_instructions += "path/to/NIS_output.txt\n";
 	usage_instructions += "[r|l|b] for [radar only|laser only|both] \n";
 
 	bool has_valid_args = false;
 
 	// make sure the user has provided input and output files
-	if (argc == 1) {
+	if (argc < 5) {
 	cerr << usage_instructions << endl;
-	} else if (argc == 2 || argc == 3) {
-	cerr << "Please include an output file and the measurements you want to use.\n" << usage_instructions << endl;
-	} else if (argc == 4) {
+	}else if (argc == 5) {
 	has_valid_args = true;
-	} else if (argc > 4) {
+	}else if (argc > 5) {
 	cerr << "Too many arguments.\n" << usage_instructions << endl;
 	}
 
-	if (!has_valid_args) {
+	if (!has_valid_args)
 	exit(EXIT_FAILURE);
-	}
-
+	
 	try{
 		conf.inputFile= argv[1];
 		conf.outputFile = argv[2];
-		string sensorData = argv[3];
+		conf.NISFile = argv[3];
+		string sensorData = argv[4];
 
 		if(sensorData.compare("r") == 0 || sensorData.compare("R") == 0 || sensorData.compare("radar") == 0){
 			conf.radar = true;
 			conf.laser = false;
-
 		}
 		else if(sensorData.compare("l") == 0 || sensorData.compare("L") == 0 || sensorData.compare("laser") == 0){
 			conf.laser = true;
@@ -210,14 +183,12 @@ SystemConfiguration ParseCMDLine(int argc, char *argv[]) {
 	{
 		cerr << "Please use a layout like the one described in the usage" << usage_instructions << endl;
 		exit(EXIT_FAILURE);
-
 	}
 
 	return conf;
 }
 
-void check_files(ifstream& in_file, string& in_name,
-                 ofstream& out_file, string& out_name) {
+void check_files(ifstream& in_file, string& in_name, ofstream& out_file, string& out_name) {
   if (!in_file.is_open()) {
     cerr << "Cannot open input file: " << in_name << endl;
     exit(EXIT_FAILURE);
@@ -229,9 +200,147 @@ void check_files(ifstream& in_file, string& in_name,
   }
 }
 
-int main(int argc, char* argv[]) {
+
+void execute_UKF_parametersOptimization(string input_file, string output_file, double std_a, double std_yawdd, 
+										vector<double> * lidar_nis_values_out, vector<double> * radar_nis_values_out){
 
 	SystemConfiguration conf;
+	
+	conf.inputFile = input_file;
+	conf.outputFile = output_file;
+	
+	conf.radar = true;
+	conf.laser = true;
+	
+	ifstream in_file_(conf.inputFile.c_str(), ifstream::in);
+
+	ofstream out_file_(conf.outputFile.c_str(), ofstream::app);
+
+	check_files(in_file_, conf.inputFile, out_file_, conf.outputFile);
+
+	/**********************************************
+	*  Read input file and set measurement       *
+	**********************************************/
+
+	vector<MeasurementPackage> measurement_pack_list;
+	vector<GroundTruthPackage> gt_pack_list;
+
+	vector<double> lidar_nis_values;
+	vector<double> radar_nis_values;
+
+	readInputFile(in_file_, &measurement_pack_list, &gt_pack_list, conf);
+  
+	// Create a UKF instance
+	UKF ukf;
+	ukf.Q_ << pow(std_a,2),	0,
+			0,				pow(std_yawdd,2);
+
+
+	// used to compute the RMSE later
+	vector<VectorXd> estimations;
+	vector<VectorXd> ground_truth;
+
+	// start filtering from the second frame (the speed is unknown in the first frame)
+
+	size_t number_of_measurements = measurement_pack_list.size();
+
+	// column names for output file
+	out_file_ << "time_stamp" << "\t";  
+	out_file_ << "px_state" << "\t";
+	out_file_ << "py_state" << "\t";
+	out_file_ << "v_state" << "\t";
+	out_file_ << "yaw_angle_state" << "\t";
+	out_file_ << "yaw_rate_state" << "\t";
+	out_file_ << "sensor_type" << "\t";
+	out_file_ << "NIS" << "\t";  
+	out_file_ << "px_measured" << "\t";
+	out_file_ << "py_measured" << "\t";
+	out_file_ << "px_ground_truth" << "\t";
+	out_file_ << "py_ground_truth" << "\t";
+	out_file_ << "vx_ground_truth" << "\t";
+	out_file_ << "vy_ground_truth" << "\n";
+
+
+	for (size_t k = 0; k < number_of_measurements; ++k) {
+		// Call the UKF-based fusion
+
+		ukf.ProcessMeasurement(measurement_pack_list[k]);
+
+		//writeData(out_file_,measurement_pack_list[k],gt_pack_list[k],ukf);
+
+		// convert ukf x vector to cartesian to compare to ground truth
+		VectorXd ukf_x_cartesian_ = VectorXd(4);
+	
+		double x_estimate_ = ukf.x_(0);
+		double y_estimate_ = ukf.x_(1);
+		double vx_estimate_ = ukf.x_(2) * cos(ukf.x_(3));
+		double vy_estimate_ = ukf.x_(2) * sin(ukf.x_(3));
+    
+		ukf_x_cartesian_ << x_estimate_, y_estimate_, vx_estimate_, vy_estimate_;
+    
+		estimations.push_back(ukf_x_cartesian_);
+
+		ground_truth.push_back(gt_pack_list[k].gt_values_);
+
+		if (measurement_pack_list[k].sensor_type_ == MeasurementPackage::LASER) 
+			lidar_nis_values.push_back(ukf.NIS_laser_);
+		else if (measurement_pack_list[k].sensor_type_ == MeasurementPackage::RADAR)
+			radar_nis_values.push_back(ukf.NIS_radar_);
+
+	}
+
+	// compute the accuracy (RMSE)
+	Tools tools;
+	cout << "RMSE" << endl << tools.CalculateRMSE(estimations, ground_truth) << endl;
+
+	// close files
+	if (out_file_.is_open()) {
+		out_file_.close();
+	}
+
+	if (in_file_.is_open()) {
+		in_file_.close();
+	}
+	*lidar_nis_values_out = lidar_nis_values;
+	*radar_nis_values_out = radar_nis_values;
+
+	cout << "Done!" << endl;
+}
+
+
+void write_NIS(string filename, vector<double> lidar_nis_values, vector<double> radar_nis_values, vector<double> nis_values){
+
+	ofstream NIS_out_file(filename, ofstream::app);
+
+	for(int t = 0;t< lidar_nis_values.size() ;t++){
+		NIS_out_file << lidar_nis_values[t];
+		if(t<lidar_nis_values.size()-1)
+			NIS_out_file << " - ";
+	}
+	NIS_out_file << endl;
+	for(int t = 0;t< radar_nis_values.size();t++){
+		NIS_out_file << radar_nis_values[t];
+		if(t<radar_nis_values.size()-1)
+			NIS_out_file << " - ";
+	}
+	NIS_out_file << endl;
+	for(int t = 0;t< nis_values.size();t++){
+		NIS_out_file << nis_values[t];
+		if(t<nis_values.size()-1)
+			NIS_out_file << " - ";
+	}
+	
+	NIS_out_file.close();
+}
+
+void execute_UKF(int argc, char* argv[]){
+
+	SystemConfiguration conf;
+	
+	vector<double> nis_values;
+	vector<double> lidar_nis_values;
+	vector<double> radar_nis_values;
+
 	#ifndef DEBUG
 	conf = ParseCMDLine(argc, argv);
 	/*check_arguments(argc, argv);
@@ -244,6 +353,15 @@ int main(int argc, char* argv[]) {
 	
 	conf.inputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-input.txt";
 	conf.outputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-output.txt";
+	conf.NISFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-NIS.txt";
+	//conf.inputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-1.txt";
+	//conf.outputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-1-output.txt";
+	//conf.NISFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-1-NIS.txt";
+
+	//conf.inputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2.txt";
+	//conf.outputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2-output.txt";
+	//conf.NISFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2-NIS.txt";
+
 	conf.radar = true;
 	conf.laser = true;
 										
@@ -254,78 +372,136 @@ int main(int argc, char* argv[]) {
 
 	check_files(in_file_, conf.inputFile, out_file_, conf.outputFile);
 
-  /**********************************************
-   *  Read input file and set measurement       *
-   **********************************************/
+	/**********************************************
+	*  Read input file and set measurement       *
+	**********************************************/
 
-  vector<MeasurementPackage> measurement_pack_list;
-  vector<GroundTruthPackage> gt_pack_list;
+	vector<MeasurementPackage> measurement_pack_list;
+	vector<GroundTruthPackage> gt_pack_list;
 
-  readInputFile(in_file_, &measurement_pack_list, &gt_pack_list, conf);
+	readInputFile(in_file_, &measurement_pack_list, &gt_pack_list, conf);
   
-  // Create a UKF instance
-  UKF ukf;
+	// Create a UKF instance
+	UKF ukf;
 
-  // used to compute the RMSE later
-  vector<VectorXd> estimations;
-  vector<VectorXd> ground_truth;
+	// used to compute the RMSE later
+	vector<VectorXd> estimations;
+	vector<VectorXd> ground_truth;
 
-  // start filtering from the second frame (the speed is unknown in the first
-  // frame)
+	// start filtering from the second frame (the speed is unknown in the first
+	// frame)
 
-  size_t number_of_measurements = measurement_pack_list.size();
+	size_t number_of_measurements = measurement_pack_list.size();
 
-  // column names for output file
-  out_file_ << "time_stamp" << "\t";  
-  out_file_ << "px_state" << "\t";
-  out_file_ << "py_state" << "\t";
-  out_file_ << "v_state" << "\t";
-  out_file_ << "yaw_angle_state" << "\t";
-  out_file_ << "yaw_rate_state" << "\t";
-  out_file_ << "sensor_type" << "\t";
-  out_file_ << "NIS" << "\t";  
-  out_file_ << "px_measured" << "\t";
-  out_file_ << "py_measured" << "\t";
-  out_file_ << "px_ground_truth" << "\t";
-  out_file_ << "py_ground_truth" << "\t";
-  out_file_ << "vx_ground_truth" << "\t";
-  out_file_ << "vy_ground_truth" << "\n";
+	// column names for output file
+	out_file_ << "time_stamp" << "\t";  
+	out_file_ << "px_state" << "\t";
+	out_file_ << "py_state" << "\t";
+	out_file_ << "v_state" << "\t";
+	out_file_ << "yaw_angle_state" << "\t";
+	out_file_ << "yaw_rate_state" << "\t";
+	out_file_ << "sensor_type" << "\t";
+	out_file_ << "NIS" << "\t";  
+	out_file_ << "px_measured" << "\t";
+	out_file_ << "py_measured" << "\t";
+	out_file_ << "px_ground_truth" << "\t";
+	out_file_ << "py_ground_truth" << "\t";
+	out_file_ << "vx_ground_truth" << "\t";
+	out_file_ << "vy_ground_truth" << "\n";
 
 
-  for (size_t k = 0; k < number_of_measurements; ++k) {
-    // Call the UKF-based fusion
+	for (size_t k = 0; k < number_of_measurements; ++k) {
+		// Call the UKF-based fusion
+
+		ukf.ProcessMeasurement(measurement_pack_list[k]);
+		writeData(out_file_,measurement_pack_list[k],gt_pack_list[k],ukf);
+		// convert ukf x vector to cartesian to compare to ground truth
+		VectorXd ukf_x_cartesian_ = VectorXd(4);
 	
-    ukf.ProcessMeasurement(measurement_pack_list[k]);
+		double x_estimate_ = ukf.x_(0);
+		double y_estimate_ = ukf.x_(1);
+		double vx_estimate_ = ukf.x_(2) * cos(ukf.x_(3));
+		double vy_estimate_ = ukf.x_(2) * sin(ukf.x_(3));
+    
+		ukf_x_cartesian_ << x_estimate_, y_estimate_, vx_estimate_, vy_estimate_;
+    
+		estimations.push_back(ukf_x_cartesian_);
 
-    // convert ukf x vector to cartesian to compare to ground truth
-    VectorXd ukf_x_cartesian_ = VectorXd(4);
+		ground_truth.push_back(gt_pack_list[k].gt_values_);
+
+		if (measurement_pack_list[k].sensor_type_ == MeasurementPackage::LASER){
+			nis_values.push_back(ukf.NIS_laser_);
+			lidar_nis_values.push_back(ukf.NIS_laser_);
+		}
+		else if (measurement_pack_list[k].sensor_type_ == MeasurementPackage::RADAR){
+			nis_values.push_back(ukf.NIS_radar_);
+			radar_nis_values.push_back(ukf.NIS_radar_);
+		}
+
+	}
+
+	// compute the accuracy (RMSE)
+	Tools tools;
+	cout << "RMSE" << endl << tools.CalculateRMSE(estimations, ground_truth) << endl;
+
+	// close files
+	if (out_file_.is_open()) {
+		out_file_.close();
+	}
+
+	if (in_file_.is_open()) {
+		in_file_.close();
+	}
+	write_NIS(conf.NISFile, lidar_nis_values, radar_nis_values, nis_values);
+
+	cout << "NIS" << endl << tools.EvaluateNISIndex(lidar_nis_values,radar_nis_values,nis_values) << endl;
+	cout << "Done!" << endl;
+}
+
+int main(int argc, char* argv[]) {
 	
-	double x_estimate_ = ukf.x_(0);
-    double y_estimate_ = ukf.x_(1);
-    double vx_estimate_ = ukf.x_(2) * cos(ukf.x_(3));
-    double vy_estimate_ = ukf.x_(2) * sin(ukf.x_(3));
-    
-    ukf_x_cartesian_ << x_estimate_, y_estimate_, vx_estimate_, vy_estimate_;
-    
-    estimations.push_back(ukf_x_cartesian_);
+	
+	//array<string,1> input_files = {
+	//	"E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2.txt"//,
+	//	//"E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-1.txt",
+	//	//"E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-input.txt"							   };
+	//};
+	//array<string,3> output_files = {"E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2-output.txt",
+	//								"E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-1-output.txt",
+	//								"E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-output.txt"};
+	//	
+	//vector<double> std_a_s; 
+	//vector<double> std_yawdd_s;
+	//float i = 0.8;
+	//while(i>=0.2){
+	//	std_a_s.push_back(i);
+	//	i-=0.05;
+	//}
+	//float j = 1.2;
+	//while(j>=0.2){
+	//	std_yawdd_s.push_back(j);
+	//	j-=0.05;
+	//}
+	//for(int i = 0;i<(input_files.size());i++)
+	//	for(int j = 0;j<std_a_s.size();j++)
+	//		for(int k = 0;k<std_yawdd_s.size();k++){
+	//			cout << "=================" << input_files[i].substr(input_files[i].find_last_of("/")) << "=================";
+	//			cout << "std_a_s=" << std_a_s[j] << " - std_yawdd=" << std_yawdd_s[k] << endl; 
+	//			execute_UKF_parametersOptimization(input_files[i],output_files[i],std_a_s[j],std_yawdd_s[k],&nis_values);
 
-    ground_truth.push_back(gt_pack_list[k].gt_values_);
+	//			NIS_out_file <<"std_a_s=" << std_a_s[j] << " - std_yawdd=" << std_yawdd_s[k] << endl;
 
-  }
+	//			for(int t = 0;t< nis_values.size() ;t++)
+	//				NIS_out_file << nis_values[t] << " - ";
+	//			NIS_out_file << endl;
 
-  // compute the accuracy (RMSE)
-  Tools tools;
-  cout << "RMSE" << endl << tools.CalculateRMSE(estimations, ground_truth) << endl;
+	//		}
+	//if (NIS_out_file.is_open()) {
+	//	NIS_out_file.close();
+	//}
 
-  // close files
-  if (out_file_.is_open()) {
-    out_file_.close();
-  }
+	execute_UKF(argc, argv);
 
-  if (in_file_.is_open()) {
-    in_file_.close();
-  }
 
-  cout << "Done!" << endl;
-  return 0;
+	return 0;
 }

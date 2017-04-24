@@ -36,3 +36,49 @@ VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations, const vector<
 	return rmse;
 
 }
+
+VectorXd Tools::EvaluateNISIndex(const vector<double> lidar_nis_values, const vector<double> radar_nis_values, 
+							     const vector<double> nis_values) {
+
+        const float radar_95 = 7.815;
+        const float lidar_95 = 5.991;
+		VectorXd nis_performances(3);
+		nis_performances.fill(0.0);
+		for(int i = 0; i < lidar_nis_values.size(); i++)
+            if(lidar_nis_values[i] > lidar_95)
+                nis_performances[0]+=1.0;
+
+		for(int i = 0; i < radar_nis_values.size(); i++)
+            if(radar_nis_values[i] > radar_95)
+                nis_performances[1]+=1.0;
+
+		for(int i = 0; i < nis_values.size(); i++)
+            if(nis_values[i] > lidar_95)
+                nis_performances[2]+=1.0;
+		nis_performances[0] /=lidar_nis_values.size();
+		nis_performances[1] /=radar_nis_values.size();
+		nis_performances[2] /=nis_values.size();
+
+		return nis_performances;
+}
+double Tools::NormalizeAngle(const double currentAngle) {
+
+	double norm_val = currentAngle;
+
+    //angle normalization
+
+	//while (norm_val> M_PI) norm_val-=2.*M_PI;
+	//while (norm_val<-M_PI) norm_val+=2.*M_PI;
+	
+	if (norm_val > M_PI){ 
+		norm_val = fmod(norm_val,(2.*M_PI));
+		if (norm_val != 0 && (norm_val>M_PI)) norm_val -= (2.*M_PI);
+	}
+    if (norm_val < -M_PI){
+		norm_val = fmod(norm_val,(2.*M_PI));
+		if (norm_val != 0 && (norm_val<-M_PI)) norm_val += (2.*M_PI);
+			 
+	}
+	
+	return norm_val;
+}

@@ -9,7 +9,7 @@ class SystemConfiguration{
 
 public:
 
-	string inputFile, outputFile;
+	string inputFile, outputFile, NISFile;
 	bool laser, radar;
 };
 
