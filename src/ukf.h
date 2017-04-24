@@ -84,6 +84,9 @@ public:
 
 	///* Measurement dimension
 	int n_z_;
+	
+	///* Number of sigma points
+	int n_sig_;
 
 	///* Sigma point spreading parameter
 	double lambda_;

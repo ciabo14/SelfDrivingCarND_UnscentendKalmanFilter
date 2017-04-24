@@ -83,13 +83,13 @@ if __name__ == "__main__":
 	#output_file =  "..\data\obj_pose-laser-radar-synthetic-output.txt"
 	#NIS_file =  "..\data\obj_pose-laser-radar-synthetic-NIS.txt"
 
-	#input_file =  "..\data\sample-laser-radar-measurement-data-1.txt"
-	#output_file =  "..\data\sample-laser-radar-measurement-data-1-output.txt"
-	#NIS_file =  "..\data\sample-laser-radar-measurement-data-1-NIS.txt"
+	input_file =  "..\data\sample-laser-radar-measurement-data-1.txt"
+	output_file =  "..\data\sample-laser-radar-measurement-data-1-output.txt"
+	NIS_file =  "..\data\sample-laser-radar-measurement-data-1-NIS.txt"
 
-	input_file =  "..\data\sample-laser-radar-measurement-data-2.txt"
-	output_file =  "..\data\sample-laser-radar-measurement-data-2-output.txt"
-	NIS_file =  "..\data\sample-laser-radar-measurement-data-2-NIS.txt"
+	#input_file =  "..\data\sample-laser-radar-measurement-data-2.txt"
+	#output_file =  "..\data\sample-laser-radar-measurement-data-2-output.txt"
+	#NIS_file =  "..\data\sample-laser-radar-measurement-data-2-NIS.txt"
 
 	plot_NIS(NIS_file)
 	plot_Path(input_file, output_file)

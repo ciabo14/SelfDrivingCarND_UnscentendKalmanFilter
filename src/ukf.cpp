@@ -101,12 +101,15 @@ UKF::UKF() {
 
 	///* Measurement dimension
 	n_z_ = 3;
+	
+	///* Number of sigma points
+	n_sig_ = 2*n_aug_+1;
 
 	///* Sigma point spreading parameter
 	lambda_ = 3 - n_aug_;
 
 	///* Weights of sigma points for mean/variance prediction
-	weights_ = VectorXd(2*n_aug_+1);
+	weights_ = VectorXd(n_sig_);
 	weights_.fill(0.0);
 
 	weights_(0) = lambda_/(lambda_+n_aug_);
@@ -378,16 +381,13 @@ void UKF::PredictSigmaPoints(double dt){
  */
 void UKF::PredictMeanAndVariance(){
 
-	//predict state mean
-	//predict state covariance matrix
+	//predict state mean and predict state covariance matrix
+
 	x_.fill(0.0);
 	P_.fill(0.0);
 
-	for(int i = 0;i<Xsig_pred_.cols();i++)
-		x_ = x_ + weights_(i)*Xsig_pred_.col(i);
-    
-	//x = Xsig_pred*weights;
-    
+	x_ = Xsig_pred_ * weights_;
+	
 	for(int i = 0;i<Xsig_pred_.cols();i++){
 
 	    // state difference
