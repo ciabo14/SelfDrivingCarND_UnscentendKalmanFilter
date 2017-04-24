@@ -29,7 +29,7 @@ The executables is compiled in order to be executed with the single usage for li
 
 ## NIS index analysis and noise optimization:
 
-Process noise parameters were optimized using the NIS indicator. The consistency check was done in the dataset *obj_pose-laser-radar-synthetic-input.txt*. Since process noise is define by two parameters \sigma_{a} and \sigma_{\ddot{\phi}}, we have 2 degree of freedom and the NIS reference value is **5.991**.
+Process noise parameters were optimized using the NIS indicator. The consistency check was done in the dataset *obj_pose-laser-radar-synthetic-input.txt*. Since process noise is define by two parameters $\sigma_{a}$ and $\sigma_{\ddot{\phi}}$, we have 2 degree of freedom and the NIS reference value is **5.991**.
 
 Whit the noise values optimized, the percentage of the vaules over the reference values are **6.6%**.
 
