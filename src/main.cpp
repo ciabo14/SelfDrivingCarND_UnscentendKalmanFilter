@@ -15,8 +15,6 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using std::vector;
 
-#define DEBUG true;
-
 void readInputFile(ifstream &in_file_, vector<MeasurementPackage> *meas_pack_list_out, vector<GroundTruthPackage> *gt_pack_list_out, SystemConfiguration conf){
 	
 	vector<MeasurementPackage> measurement_pack_list;
