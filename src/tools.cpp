@@ -13,7 +13,7 @@ Tools::~Tools() {}
 VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations, const vector<VectorXd> &ground_truth) {
 
 	VectorXd rmse(4);
-	rmse << 0,0,0,0;
+	rmse.fill(0.0);
 
 	// check the validity of the inputs 
     if(estimations.size() == 0 || estimations.size() != ground_truth.size())
@@ -24,8 +24,10 @@ VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations, const vector<
 	//accumulate squared residuals
 	for(int i=0; i < estimations.size(); ++i){
 
-		rmse = rmse.array() + (estimations[i]-ground_truth[i]).array()*(estimations[i]-ground_truth[i]).array();
-		
+		//rmse = rmse.array() + (estimations[i]-ground_truth[i]).array()*(estimations[i]-ground_truth[i]).array();
+		VectorXd res = estimations[i] - ground_truth[i];
+        res = res.array() * res.array();
+        rmse += res;
 	}
 	//calculate the mean and the squared root
     rmse /= estimations.size();

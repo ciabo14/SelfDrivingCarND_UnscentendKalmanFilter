@@ -13,6 +13,8 @@ using namespace std;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using std::vector;
+
+#define DEBUG true;
 /*
 void check_arguments(int argc, char* argv[]) {
   string usage_instructions = "Usage instructions: ";
@@ -37,6 +39,121 @@ void check_arguments(int argc, char* argv[]) {
   }
 }
 */
+
+
+void readInputFile(ifstream &in_file_, vector<MeasurementPackage> *meas_pack_list_out, vector<GroundTruthPackage> *gt_pack_list_out, SystemConfiguration conf){
+	
+	vector<MeasurementPackage> measurement_pack_list;
+	vector<GroundTruthPackage> gt_pack_list;
+	string line;
+
+  // prep the measurement packages (each line represents a measurement at a
+  // timestamp)
+	while (getline(in_file_, line)) {
+		string sensor_type;
+		MeasurementPackage meas_package;
+		GroundTruthPackage gt_package;
+		istringstream iss(line);
+		long long timestamp;
+
+		// reads first element from the current line
+		iss >> sensor_type;
+
+		if (sensor_type.compare("L") == 0) {
+			// laser measurement
+
+			// read measurements at this timestamp
+			meas_package.sensor_type_ = MeasurementPackage::LASER;
+			meas_package.raw_measurements_ = VectorXd(2);
+			float px;
+			float py;
+			iss >> px;
+			iss >> py;
+			meas_package.raw_measurements_ << px, py;
+			iss >> timestamp;
+			meas_package.timestamp_ = timestamp;
+			if(conf.laser)
+				measurement_pack_list.push_back(meas_package);
+		} else if (sensor_type.compare("R") == 0) {
+			// radar measurement
+
+			// read measurements at this timestamp
+			meas_package.sensor_type_ = MeasurementPackage::RADAR;
+			meas_package.raw_measurements_ = VectorXd(3);
+			float ro;
+			float phi;
+			float ro_dot;
+			iss >> ro;
+			iss >> phi;
+			iss >> ro_dot;
+			meas_package.raw_measurements_ << ro, phi, ro_dot;
+			iss >> timestamp;
+			meas_package.timestamp_ = timestamp;
+			if(conf.radar)
+				measurement_pack_list.push_back(meas_package);
+		}
+
+		// read ground truth data to compare later
+		float x_gt;
+		float y_gt;
+		float vx_gt;
+		float vy_gt;
+		iss >> x_gt;
+		iss >> y_gt;
+		iss >> vx_gt;
+		iss >> vy_gt;
+		gt_package.gt_values_ = VectorXd(4);
+		gt_package.gt_values_ << x_gt, y_gt, vx_gt, vy_gt;
+		if((sensor_type.compare("R") && conf.radar) || (sensor_type.compare("L") && conf.laser))
+			gt_pack_list.push_back(gt_package);
+	}
+	*meas_pack_list_out = measurement_pack_list;
+	*gt_pack_list_out = gt_pack_list;
+}
+
+void writeData(ofstream &out_file_, MeasurementPackage meas_package, GroundTruthPackage gt_package, UKF ukf){
+	// timestamp
+    out_file_  << meas_package.timestamp_ << "\t"; // pos1 - est
+
+    // output the state vector
+    out_file_  << ukf.x_(0) << "\t"; // pos1 - est
+    out_file_  << ukf.x_(1) << "\t"; // pos2 - est
+    out_file_  << ukf.x_(2) << "\t"; // vel_abs -est
+    out_file_  << ukf.x_(3) << "\t"; // yaw_angle -est
+    out_file_  << ukf.x_(4) << "\t"; // yaw_rate -est
+
+    // output lidar and radar specific data
+    if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
+      // sensor type
+      out_file_  << "lidar" << "\t";
+
+      // NIS value
+      out_file_  << ukf.NIS_laser_ << "\t";
+
+      // output the lidar sensor measurement px and py
+      out_file_  << meas_package.raw_measurements_(0) << "\t";
+      out_file_  << meas_package.raw_measurements_(1) << "\t";
+
+    } else if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
+      // sensor type
+      out_file_  << "radar" << "\t";
+
+      // NIS value
+      out_file_  << ukf.NIS_radar_ << "\t";
+
+      // output radar measurement in cartesian coordinates
+      double ro = meas_package.raw_measurements_(0);
+      double phi = meas_package.raw_measurements_(1);
+      out_file_  << ro * cos(phi) << "\t"; // px measurement
+      out_file_  << ro * sin(phi) << "\t"; // py measurement
+    }
+
+    // output the ground truth
+    out_file_  << gt_package.gt_values_(0) << "\t";
+	out_file_  << gt_package.gt_values_(1) << "\t";
+    out_file_  << gt_package.gt_values_(2) << "\t";
+    out_file_  << gt_package.gt_values_(3) << "\n";
+}
 
 SystemConfiguration ParseCMDLine(int argc, char *argv[]) {
 
@@ -125,87 +242,27 @@ int main(int argc, char* argv[]) {
 
 	#ifdef DEBUG
 	
-	conf.inputFile = "E:/Self Driving Car Nanodegree/Term 2/KFDevelopment/CarND-Extended-Kalman-Filter-Project-GITHUBDirectory/data/sample-laser-radar-measurement-data-2.txt";
-	conf.outputFile = "E:/Self Driving Car Nanodegree/Term 2/KFDevelopment/CarND-Extended-Kalman-Filter-Project-GITHUBDirectory/data/sample-laser-radar-measurement-data-2-output.txt";
+	conf.inputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-input.txt";
+	conf.outputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-output.txt";
 	conf.radar = true;
 	conf.laser = true;
 										
 	#endif
 	ifstream in_file_(conf.inputFile.c_str(), ifstream::in);
 
-	ofstream out_file_(conf.outputFile.c_str(), ofstream::out);
+	ofstream out_file_(conf.outputFile.c_str(), ofstream::app);
 
 	check_files(in_file_, conf.inputFile, out_file_, conf.outputFile);
+
   /**********************************************
-   *  Set Measurements                          *
+   *  Read input file and set measurement       *
    **********************************************/
 
   vector<MeasurementPackage> measurement_pack_list;
   vector<GroundTruthPackage> gt_pack_list;
 
-  string line;
-
-  // prep the measurement packages (each line represents a measurement at a
-  // timestamp)
-	while (getline(in_file_, line)) {
-		string sensor_type;
-		MeasurementPackage meas_package;
-		GroundTruthPackage gt_package;
-		istringstream iss(line);
-		long long timestamp;
-
-		// reads first element from the current line
-		iss >> sensor_type;
-
-		if (sensor_type.compare("L") == 0) {
-			// laser measurement
-
-			// read measurements at this timestamp
-			meas_package.sensor_type_ = MeasurementPackage::LASER;
-			meas_package.raw_measurements_ = VectorXd(2);
-			float px;
-			float py;
-			iss >> px;
-			iss >> py;
-			meas_package.raw_measurements_ << px, py;
-			iss >> timestamp;
-			meas_package.timestamp_ = timestamp;
-			if(conf.laser)
-				measurement_pack_list.push_back(meas_package);
-		} else if (sensor_type.compare("R") == 0) {
-			// radar measurement
-
-			// read measurements at this timestamp
-			meas_package.sensor_type_ = MeasurementPackage::RADAR;
-			meas_package.raw_measurements_ = VectorXd(3);
-			float ro;
-			float phi;
-			float ro_dot;
-			iss >> ro;
-			iss >> phi;
-			iss >> ro_dot;
-			meas_package.raw_measurements_ << ro, phi, ro_dot;
-			iss >> timestamp;
-			meas_package.timestamp_ = timestamp;
-			if(conf.laser)
-				measurement_pack_list.push_back(meas_package);
-		}
-
-		// read ground truth data to compare later
-		float x_gt;
-		float y_gt;
-		float vx_gt;
-		float vy_gt;
-		iss >> x_gt;
-		iss >> y_gt;
-		iss >> vx_gt;
-		iss >> vy_gt;
-		gt_package.gt_values_ = VectorXd(4);
-		gt_package.gt_values_ << x_gt, y_gt, vx_gt, vy_gt;
-		if((sensor_type.compare("R") && conf.radar) || (sensor_type.compare("L") && conf.laser))
-			gt_pack_list.push_back(gt_package);
-	}
-
+  readInputFile(in_file_, &measurement_pack_list, &gt_pack_list, conf);
+  
   // Create a UKF instance
   UKF ukf;
 
@@ -237,61 +294,21 @@ int main(int argc, char* argv[]) {
 
   for (size_t k = 0; k < number_of_measurements; ++k) {
     // Call the UKF-based fusion
+	
     ukf.ProcessMeasurement(measurement_pack_list[k]);
-
-    // timestamp
-    out_file_ << measurement_pack_list[k].timestamp_ << "\t"; // pos1 - est
-
-    // output the state vector
-    out_file_ << ukf.x_(0) << "\t"; // pos1 - est
-    out_file_ << ukf.x_(1) << "\t"; // pos2 - est
-    out_file_ << ukf.x_(2) << "\t"; // vel_abs -est
-    out_file_ << ukf.x_(3) << "\t"; // yaw_angle -est
-    out_file_ << ukf.x_(4) << "\t"; // yaw_rate -est
-
-    // output lidar and radar specific data
-    if (measurement_pack_list[k].sensor_type_ == MeasurementPackage::LASER) {
-      // sensor type
-      out_file_ << "lidar" << "\t";
-
-      // NIS value
-      out_file_ << ukf.NIS_laser_ << "\t";
-
-      // output the lidar sensor measurement px and py
-      out_file_ << measurement_pack_list[k].raw_measurements_(0) << "\t";
-      out_file_ << measurement_pack_list[k].raw_measurements_(1) << "\t";
-
-    } else if (measurement_pack_list[k].sensor_type_ == MeasurementPackage::RADAR) {
-      // sensor type
-      out_file_ << "radar" << "\t";
-
-      // NIS value
-      out_file_ << ukf.NIS_radar_ << "\t";
-
-      // output radar measurement in cartesian coordinates
-      float ro = measurement_pack_list[k].raw_measurements_(0);
-      float phi = measurement_pack_list[k].raw_measurements_(1);
-      out_file_ << ro * cos(phi) << "\t"; // px measurement
-      out_file_ << ro * sin(phi) << "\t"; // py measurement
-    }
-
-    // output the ground truth
-    out_file_ << gt_pack_list[k].gt_values_(0) << "\t";
-    out_file_ << gt_pack_list[k].gt_values_(1) << "\t";
-    out_file_ << gt_pack_list[k].gt_values_(2) << "\t";
-    out_file_ << gt_pack_list[k].gt_values_(3) << "\n";
 
     // convert ukf x vector to cartesian to compare to ground truth
     VectorXd ukf_x_cartesian_ = VectorXd(4);
-
-    float x_estimate_ = ukf.x_(0);
-    float y_estimate_ = ukf.x_(1);
-    float vx_estimate_ = ukf.x_(2) * cos(ukf.x_(3));
-    float vy_estimate_ = ukf.x_(2) * sin(ukf.x_(3));
+	
+	double x_estimate_ = ukf.x_(0);
+    double y_estimate_ = ukf.x_(1);
+    double vx_estimate_ = ukf.x_(2) * cos(ukf.x_(3));
+    double vy_estimate_ = ukf.x_(2) * sin(ukf.x_(3));
     
     ukf_x_cartesian_ << x_estimate_, y_estimate_, vx_estimate_, vy_estimate_;
     
     estimations.push_back(ukf_x_cartesian_);
+
     ground_truth.push_back(gt_pack_list[k].gt_values_);
 
   }
