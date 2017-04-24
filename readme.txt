@@ -1,34 +1,61 @@
+# SelfDrivingCarND_UnscetedKalmanFilter
 
-PROJECT DESCRIPTION
-The project "unscented Kalman filter" is based on the same structure as the extended Kalman filter.
-It uses a main file that calls a function called ProcessMeasurement. Anything important happens in this function. The function is part of the class ukf.
+Implementation of the Unscented Kalman Filter (UKF) starting from the Udacity lessons. The Kalman filter is used for a sensor fusion application where data from lidar and radar are fused together for the estimation of the current position of an object (of a bike in this case). With the UKF non linear process/measurement functions are linearized with the use of sigma points. Furthermore a consistency analisys for the noise parameter is performed with the support of the NIS (Normalized Innovation Squared) indicator.
 
+## Repository structure
 
-C++ QUIZZES
-The quizzes including the solutions of them are included in the file ukf.cpp. They are individual functions, which don't need any special environment. The solution of the quizzes are given here and also the expected results.
-The quizzes can easily evaluated: if every value of the student solution (vectors and matrices) differs less than 0.001 from the original solution, the quizz is passed, otherwise failed.
+The repository is made of 3 different folders:
 
+1.  src: includes all the src files required for executable build and to execute the kalman filter;
+2.  data: includes all the original data provided by udacity and the results output files; are also included the NIS output files for all the datasets
+3.  executable: includes the executable of the program;
+4.  utilities: includes the python script to create the graphs starting from the data in the data folder. The path for the input/output file in the python are hard coded.
+5.  images: includes the images shown in the README
 
+## USAGE instruction:
 
-PROJECT PASSING CRITERIA
-There are several criteria that must be fulfilled to pass the project.
+In order to execute the executable in the executable file you should follow the following usage instruction:
 
-- The overall processing chain (prediction, laser update or radar update depending on measurement type) must be correct.
-- The student is not allowed to use values from the future to reason about the current state.
-- It must be possible to run the project in three different modes: considering laser only, with considering radar only, or with using both sensors.
-- For every mode, the overall RMSE (2d position only) may not be more than 10% increased to what the original solution is able to reach (this number depends on the individual measurement sequence)
-- The RMSE of laser AND radar must be lower than radar only or laser only
-- The NIS of radar measurements must be between 0.35 and 7.81 in at least 80% of all radar update steps.
+**Usage instructions:**
 
+```c++
+./ExtendedKF.exe
+path/to/input.txt
+path/to/output.txt
+[r|l|b] for [radar only|laser only|both]
+```
+The executables is compiled in order to be executed with the single usage for lidar or radar or with the usage of both. The usage of a single sensor will select data from the input file in order to use only L|R or data from all the sensors.
 
-PROJECT GRADING
-- I recommend a hall of fame for the lowest overall RMSE using laser AND radar.
-- I recommend to ask students to improve the initialization procedure and evaluate the RMSE during the first 20 steps.
+## NIS index analysis and noise optimization:
 
+Process noise parameters were optimized using the NIS indicator. The consistency check was done in the dataset 'obj_pose-laser-radar-synthetic-input.txt'. Since process noise is define by two parameters \sigma_{a} and \sigma_{\ddot{\phi}}, we have 2 degree of freedom and the NIS reference value is 5.991.
 
+Whit the noise values optimized, the percentage of the vaules over the reference values are 6.6%.
 
+##Results
 
+The computed RMSE, also output of the executable, is stricty dependant on the sensor used. The results for the provided files are:
 
+1. INPUT filename: **obj_pose-laser-radar-synthetic-input.txt**
 
+Sensor  |     px     |     py     |     vx     |     vy     |
+------- | ---------- | ---------- | ---------- | ---------- |
+BOTH    |  0.0644369 |  0.0816021 |  0.32561   |  0.221245  |
 
+![alt tag](https://github.com/ciabo14/SelfDrivingCarND_KalmanFilter/blob/master/images/dataset_new_image.png)
 
+2. INPUT filename: **sample-laser-radar-measurement-data-1.txt**
+
+Sensor  |     px     |     py     |     vx     |     vy     |
+------- | ---------- | ---------- | ---------- | ---------- |
+BOTH    |  0.0723371 |  0.0795866 |  0.589185  |  0.574702  |
+
+![alt tag](https://github.com/ciabo14/SelfDrivingCarND_KalmanFilter/blob/master/images/dataset_old_1_image.png)
+
+3. INPUT filename: **sample-laser-radar-measurement-data-2.txt**
+
+Sensor  |     px     |     py     |     vx     |     vy     |
+------- | ---------- | ---------- | ---------- | ---------- |
+BOTH    |  0.193473  |  0.189554  |  0.419756  |  0.528889  |
+
+![alt tag](https://github.com/ciabo14/SelfDrivingCarND_KalmanFilter/blob/master/images/dataset_old_2_image.png)
