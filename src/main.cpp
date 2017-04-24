@@ -15,6 +15,13 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using std::vector;
 
+/**
+ * This function will read all the measurement data from the input file and will create two lists: one of measurement and one of GT
+  * @params {ifstream} in_file_ the input file ifstream
+ * {vector<MeasurementPackage> *} meas_pack_list_out the vector where to place all the measurements to be used
+ * {vector<MeasurementPackage>* } gt_pack_list_out the vector where to place all the gt values to be used
+ * {SystemConfiguration} conf the SystemConfiguration to select which measurement to use
+ */
 void readInputFile(ifstream &in_file_, vector<MeasurementPackage> *meas_pack_list_out, vector<GroundTruthPackage> *gt_pack_list_out, SystemConfiguration conf){
 	
 	vector<MeasurementPackage> measurement_pack_list;
@@ -84,6 +91,13 @@ void readInputFile(ifstream &in_file_, vector<MeasurementPackage> *meas_pack_lis
 	*gt_pack_list_out = gt_pack_list;
 }
 
+/**
+ * This function write in the outputfile the line referred to the current measurement
+ * @params {ofstream&} out_file_ the file were to write the predicted state
+ * {measurementPackage} meas_package the measurementPackage referred to the current measurement
+ * {GroundTruthPackage} gt_package the gt package referred to the current measurement
+ * {UKF} ukf the Unscented kalman filter from which select the predicted state
+ */
 void writeData(ofstream &out_file_, MeasurementPackage meas_package, GroundTruthPackage gt_package, UKF ukf){
 	// timestamp
     out_file_  << meas_package.timestamp_ << "\t"; // pos1 - est
@@ -128,6 +142,11 @@ void writeData(ofstream &out_file_, MeasurementPackage meas_package, GroundTruth
     out_file_  << gt_package.gt_values_(3) << "\n";
 }
 
+/**
+ * This function will parse the input and return an error if some input parameter is missing
+ * @params {int} argc the input form the command line
+ * {char *} argv[] the input form the command line
+ */
 SystemConfiguration ParseCMDLine(int argc, char *argv[]) {
 
 	SystemConfiguration conf;
@@ -174,8 +193,7 @@ SystemConfiguration ParseCMDLine(int argc, char *argv[]) {
 		}
 		else
 			throw "Not valid arg";
-		cout << sensorData << conf.radar << conf.laser;
-			
+
 	}
 	catch(exception &e)
 	{
@@ -186,6 +204,13 @@ SystemConfiguration ParseCMDLine(int argc, char *argv[]) {
 	return conf;
 }
 
+/**
+ * This function will check the availability of the input and output files as well as the directories
+ * @params {ifstream*} in_file the ifstream of the input file to be checked
+ * {string*} in_name the input file name
+ * {ofstream*} out_file the ofstream of the output file to be checked
+ * {string*} out_name the output file name
+ */
 void check_files(ifstream& in_file, string& in_name, ofstream& out_file, string& out_name) {
   if (!in_file.is_open()) {
     cerr << "Cannot open input file: " << in_name << endl;
@@ -198,7 +223,15 @@ void check_files(ifstream& in_file, string& in_name, ofstream& out_file, string&
   }
 }
 
-
+/**
+ * This function execute the UKF over all the measurements with a design for the noise parameters optimization
+ * @params {string} input_file the name of the input file
+ * {string} output_file the name of the output file
+ * {double} std_a the value of the noise parameter std_a to be used
+ * {double} std_yawdd the value of the noise parameter std_yawdd to be used 
+ * {vector<double> *} lidar_nis_values_out the vector where to save the lidar NIS values 
+ * {vector<double> *} radar_nis_values_out the vector where to save the radar NIS values 
+ */
 void execute_UKF_parametersOptimization(string input_file, string output_file, double std_a, double std_yawdd, 
 										vector<double> * lidar_nis_values_out, vector<double> * radar_nis_values_out){
 
@@ -305,7 +338,13 @@ void execute_UKF_parametersOptimization(string input_file, string output_file, d
 	cout << "Done!" << endl;
 }
 
-
+/**
+ * This function write the NIS values for the lidar, for the radar and for the combination in the dedicated filename
+ * @params {string} filename the name of the file where to write the NIS coefficients
+ * {vector<double>} lidar_nis_values the NIS coefficients for the lidar prediction 
+ * {vector<double>} radar_nis_values the NIS coefficients for the radar prediction
+ * {vector<double>} nis_values the NIS coefficients for the entire system.
+ */
 void write_NIS(string filename, vector<double> lidar_nis_values, vector<double> radar_nis_values, vector<double> nis_values){
 
 	ofstream NIS_out_file(filename, ofstream::app);
@@ -331,6 +370,12 @@ void write_NIS(string filename, vector<double> lidar_nis_values, vector<double> 
 	NIS_out_file.close();
 }
 
+/**
+ * This function will goes throught the set of measurement read from the input file and compute the prediction state 
+ * in the KF double step (prediction + update) for each measurement.
+ * @params {int} argc the first input argument from the command line
+ * {char*} argv[] the second input argument from the command line
+ */
 void execute_UKF(int argc, char* argv[]){
 
 	SystemConfiguration conf;
@@ -349,16 +394,16 @@ void execute_UKF(int argc, char* argv[]){
 
 	#ifdef DEBUG
 	
-	conf.inputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-input.txt";
-	conf.outputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-output.txt";
-	conf.NISFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-NIS.txt";
+	//conf.inputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-input.txt";
+	//conf.outputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-output.txt";
+	//conf.NISFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/obj_pose-laser-radar-synthetic-NIS.txt";
 	//conf.inputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-1.txt";
 	//conf.outputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-1-output.txt";
 	//conf.NISFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-1-NIS.txt";
 
-	//conf.inputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2.txt";
-	//conf.outputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2-output.txt";
-	//conf.NISFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2-NIS.txt";
+	conf.inputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2.txt";
+	conf.outputFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2-output.txt";
+	conf.NISFile = "E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2-NIS.txt";
 
 	conf.radar = true;
 	conf.laser = true;
@@ -369,10 +414,6 @@ void execute_UKF(int argc, char* argv[]){
 	ofstream out_file_(conf.outputFile.c_str(), ofstream::app);
 
 	check_files(in_file_, conf.inputFile, out_file_, conf.outputFile);
-
-	/**********************************************
-	*  Read input file and set measurement       *
-	**********************************************/
 
 	vector<MeasurementPackage> measurement_pack_list;
 	vector<GroundTruthPackage> gt_pack_list;
@@ -385,9 +426,6 @@ void execute_UKF(int argc, char* argv[]){
 	// used to compute the RMSE later
 	vector<VectorXd> estimations;
 	vector<VectorXd> ground_truth;
-
-	// start filtering from the second frame (the speed is unknown in the first
-	// frame)
 
 	size_t number_of_measurements = measurement_pack_list.size();
 
@@ -451,14 +489,14 @@ void execute_UKF(int argc, char* argv[]){
 		in_file_.close();
 	}
 	write_NIS(conf.NISFile, lidar_nis_values, radar_nis_values, nis_values);
-
-	cout << "NIS" << endl << tools.EvaluateNISIndex(lidar_nis_values,radar_nis_values,nis_values) << endl;
 	cout << "Done!" << endl;
 }
 
 int main(int argc, char* argv[]) {
 	
-	
+	/********************************************************************
+	* Used during noise optimization only
+	********************************************************************/
 	//array<string,1> input_files = {
 	//	"E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-2.txt"//,
 	//	//"E:/Self Driving Car Nanodegree/Term 2/UKF/SelfDrivingCarND_UnscentendKalmanFilter/data/sample-laser-radar-measurement-data-1.txt",
@@ -486,20 +524,16 @@ int main(int argc, char* argv[]) {
 	//			cout << "=================" << input_files[i].substr(input_files[i].find_last_of("/")) << "=================";
 	//			cout << "std_a_s=" << std_a_s[j] << " - std_yawdd=" << std_yawdd_s[k] << endl; 
 	//			execute_UKF_parametersOptimization(input_files[i],output_files[i],std_a_s[j],std_yawdd_s[k],&nis_values);
-
 	//			NIS_out_file <<"std_a_s=" << std_a_s[j] << " - std_yawdd=" << std_yawdd_s[k] << endl;
-
 	//			for(int t = 0;t< nis_values.size() ;t++)
 	//				NIS_out_file << nis_values[t] << " - ";
 	//			NIS_out_file << endl;
-
 	//		}
 	//if (NIS_out_file.is_open()) {
 	//	NIS_out_file.close();
 	//}
 
 	execute_UKF(argc, argv);
-
 
 	return 0;
 }

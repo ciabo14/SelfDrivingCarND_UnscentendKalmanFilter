@@ -39,8 +39,8 @@ VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations, const vector<
 
 VectorXd Tools::EvaluateNISIndex(const vector<double> lidar_nis_values, const vector<double> radar_nis_values, 
 							     const vector<double> nis_values) {
-
-        const float radar_95 = 7.815;
+	    //const float radar_95 = 7.815;
+        const float radar_95 = 5.991;
         const float lidar_95 = 5.991;
 		VectorXd nis_performances(3);
 		nis_performances.fill(0.0);

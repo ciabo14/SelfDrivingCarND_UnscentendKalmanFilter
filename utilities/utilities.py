@@ -14,7 +14,7 @@ def plot_NIS(NIS_file):
 	radar_NIS = np.asarray(radar_NIS).astype(np.float)
 	NIS = np.asarray(NIS).astype(np.float)
 	lidar_limit = [5.991 for i in range(0,len(lidar_NIS))]
-	radar_limit = [7.815 for i in range(0,len(radar_NIS))]
+	radar_limit = [5.991 for i in range(0,len(radar_NIS))]
 
 	combined_limit = [5.991 for i in range(0,len(NIS))]
 
@@ -73,22 +73,23 @@ def plot_Path(input_file,output_file):
 
 	plt.legend(handles=[original_data,computed_data], loc=4)
 	plt.grid()
-
+	plt.ylabel('py')
+	plt.xlabel('px')
 	plt.show()
 
 if __name__ == "__main__":
 
-	input_file =  "..\data\obj_pose-laser-radar-synthetic-input.txt"
-	output_file =  "..\data\obj_pose-laser-radar-synthetic-input-output.txt"
-	NIS_file =  "..\data\obj_pose-laser-radar-synthetic-NIS.txt"
+	#input_file =  "..\data\obj_pose-laser-radar-synthetic-input.txt"
+	#output_file =  "..\data\obj_pose-laser-radar-synthetic-output.txt"
+	#NIS_file =  "..\data\obj_pose-laser-radar-synthetic-NIS.txt"
 
 	#input_file =  "..\data\sample-laser-radar-measurement-data-1.txt"
 	#output_file =  "..\data\sample-laser-radar-measurement-data-1-output.txt"
 	#NIS_file =  "..\data\sample-laser-radar-measurement-data-1-NIS.txt"
 
-	#input_file =  "..\data\sample-laser-radar-measurement-data-2.txt"
-	#output_file =  "..\data\sample-laser-radar-measurement-data-2-output.txt"
-	#NIS_file =  "..\data\sample-laser-radar-measurement-data-2-NIS.txt"
+	input_file =  "..\data\sample-laser-radar-measurement-data-2.txt"
+	output_file =  "..\data\sample-laser-radar-measurement-data-2-output.txt"
+	NIS_file =  "..\data\sample-laser-radar-measurement-data-2-NIS.txt"
 
 	plot_NIS(NIS_file)
 	plot_Path(input_file, output_file)
