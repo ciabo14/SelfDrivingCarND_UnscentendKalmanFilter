@@ -27,12 +27,6 @@ path/to/NISFile.txt
 ```
 The executables is compiled in order to be executed with the single usage for lidar or radar or with the usage of both. The usage of a single sensor will select data from the input file in order to use only L|R or data from all the sensors.
 
-## NIS index analysis and noise optimization:
-
-Process noise parameters were optimized using the NIS indicator. The consistency check was done in the dataset *obj_pose-laser-radar-synthetic-input.txt*. Since process noise is define by two parameters sigma_a and sigma_yawdd, we have 2 degree of freedom and the NIS reference value is **5.991**.
-
-Whit the noise values optimized, the percentage of the vaules over the reference values are **6.6%**.
-
 ## Results
 
 The computed RMSE, also output of the executable, is stricty dependant on the sensor used. The results for the provided files are:
